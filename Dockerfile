@@ -4,6 +4,7 @@ RUN apk add --update ca-certificates
 
 COPY ./default.tmpl /templates/default.tmpl
 COPY ./alertmanager-bot /usr/bin/alertmanager-bot
+RUN chmod +x /usr/bin/alertmanager-bot
 
 EXPOSE 8080
 

@@ -1,15 +1,18 @@
-# Bot for Prometheus' Alertmanager [![Build Status](https://cloud.drone.io/api/badges/metalmatze/alertmanager-bot/status.svg)](https://cloud.drone.io/metalmatze/alertmanager-bot)
-
-
-[![Docker Pulls](https://img.shields.io/docker/pulls/metalmatze/alertmanager-bot.svg?maxAge=604800)](https://hub.docker.com/r/metalmatze/alertmanager-bot)
-[![Go Report Card](https://goreportcard.com/badge/github.com/metalmatze/alertmanager-bot)](https://goreportcard.com/report/github.com/metalmatze/alertmanager-bot)
-
+# Bot for Prometheus' Alertmanager
 
 This is the [Alertmanager](https://prometheus.io/docs/alerting/alertmanager/) bot for
 [Prometheus](https://prometheus.io/) that notifies you on alerts.  
 Just configure the Alertmanager to send Webhooks to the bot and that's it.
 
+This version based on the [metalmatze/alertmanager-bot](https://github.com/metalmatze/alertmanager-bot). All rights reserved.
+
 Additionally you can always **send commands** to get up-to-date information from the alertmanager.
+
+### Changes
+- Project uses a new version of Telegram Bot library - [telebot](https://github.com/tucnak/telebot)
+- You can mute alerts from different environments and projects
+- Get list of environments and projects that not muted 
+- Bot can delete alert messages in a specified period of time
 
 ### Why?
 
@@ -17,13 +20,13 @@ Alertmanager already integrates a lot of different messengers as receivers for a
 I want to extend this basic functionality.
 
 Previously the Alertmanager could only talk to you via a chat, but now you can talk back via [commands](#commands).  
-You can ask about current ongoing [alerts](#alerts) and [silences](#silences).  
-In the future I plan to also support silencing via the chat, so you can silences after getting an alert from within the chat.  
-A lot of other things can be added!
+You can ask about current ongoing [alerts](#alerts) and [silences](#silences) and mute [environments](#environments) and 
+[projects](#projects).
+  
 
 ## Messengers
 
-Right now it supports [Telegram](https://telegram.org/), but I'd like to [add more](#more-messengers) in the future.
+Supports only [Telegram](https://telegram.org/).
 
 ## Commands
 
@@ -76,6 +79,30 @@ Right now it supports [Telegram](https://telegram.org/), but I'd like to [add mo
 > Version: 0.4.0  
 > Uptime: 3 weeks 1 hour 17 minutes 19 seconds  
 
+
+###### /mute
+> You were successfully muted environments and/or projects
+
+Command examples:
+- `/mute environment[env1, env2]`
+- `/mute project[pr1, pr2]`
+- `/mute environment[env1], project[pr2]` 
+
+###### /mute_del
+> You were successfully delete mute from environments and/or projects
+
+###### /environments
+> The following environments are available: [env1 env2 env3]
+
+###### /projects
+> The following projects are available: [pr1, pr2]
+
+###### /muted_envs
+> Muted environments: [env1 env4]
+
+###### /muted_prs
+> Muted projects: [pr2 pr5]
+
 ###### /help
 
 > I'm a Prometheus AlertManager Bot for Telegram. I will notify you about alerts.  
@@ -88,12 +115,18 @@ Right now it supports [Telegram](https://telegram.org/), but I'd like to [add mo
 > [/alerts](#alerts) - List all alerts.  
 > [/silences](#silences) - List all silences.  
 > [/chats](#chats) - List all users and group chats that subscribed.
+> [/mute](#mute) - Mute environments and/or projects.
+> [/mute_del](#mute_del) - Delete mute for environments/projects.
+> [/environments](#environments) - List all environments for alerts.
+> [/projects](#projects) - List all projects for alerts.
+> [/muted_envs](#muted_envs) - List all muted environments.
+> [/muted_prs](#muted_prs) - List all muted projects.
 
 ## Installation
 
 ### Docker
 
-`docker pull metalmatze/alertmanager-bot:0.4.0`
+`docker pull kgusman/alertmanager-bot:1.1.0`
 
 Start as a command:
 
@@ -106,9 +139,13 @@ docker run -d \
 	-e 'STORE=bolt' \
 	-e 'TELEGRAM_ADMIN=1234567' \
 	-e 'TELEGRAM_TOKEN=XXX' \
+	-e 'PROMETHEUS_ENVS=env1, env2, env3' \
+	-e 'PROMETHEUS_PROJECTS=pr1, pr2' \
+    -e 'FETCH_PERIOD=2' \
+    -e 'DELETE_PERIOD=1' \
 	-v '/srv/monitoring/alertmanager-bot:/data' \
 	--name alertmanager-bot \
-	metalmatze/alertmanager-bot:0.4.0
+	kgusman/alertmanager-bot:1.1.0
 ```
 
 #### Consul Storage
@@ -120,21 +157,29 @@ docker run -d \
 	-e 'STORE=consul' \
 	-e 'TELEGRAM_ADMIN=1234567' \
 	-e 'TELEGRAM_TOKEN=XXX' \
-	--name alertmanager-bot \
-	metalmatze/alertmanager-bot:0.4.0
+    -e 'PROMETHEUS_ENVS=env1, env2, env3' \
+	-e 'PROMETHEUS_PROJECTS=pr1, pr2' \
+	-e 'FETCH_PERIOD=2' \
+    -e 'DELETE_PERIOD=1' \
+    --name alertmanager-bot \
+    kgusman/alertmanager-bot:1.1.0
 ```
 
 Usage within docker-compose:
 
 ```yml
 alertmanager-bot:
-  image: metalmatze/alertmanager-bot:0.4.0
+  image: kgusman/alertmanager-bot:1.1.0
   environment:
     ALERTMANAGER_URL: http://alertmanager:9093
     BOLT_PATH: /data/bot.db
     STORE: bolt
     TELEGRAM_ADMIN: '1234567'
     TELEGRAM_TOKEN: XXX
+    PROMETHEUS_ENVS: env1, env2, env3
+    PROMETHEUS_PROJECTS: pr1, pr2
+    FETCH_PERIOD: 2
+    DELETE_PERIOD: 1
     TEMPLATE_PATHS: /templates/default.tmpl
   volumes:
   - /srv/monitoring/alertmanager-bot:/data
@@ -144,22 +189,22 @@ alertmanager-bot:
 
 If you prefer using configuration management systems (like Ansible) you might be interested in the following role:  [mbaran0v.alertmanager-bot](https://github.com/mbaran0v/ansible-role-alertmanager-bot)
 
-### Build from source
-
-`GO111MODULE=on go get github.com/metalmatze/alertmanager-bot/cmd/alertmanager-bot`
-
 ### Configuration
 
 ENV Variable | Description
-|-------------------|------------------------------------------------------|
-| ALERTMANAGER_URL  | Address of the alertmanager, default: `http://localhost:9093` |
-| BOLT_PATH         | Path on disk to the file where the boltdb is stored, default: `/tmp/bot.db` |
-| CONSUL_URL        | The URL to use to connect with Consul, default: `localhost:8500` |
-| LISTEN_ADDR       | Address that the bot listens for webhooks, default: `0.0.0.0:8080` |
-| STORE             | The type of the store to use, choose from bolt (local) or consul (distributed) |
-| TELEGRAM_ADMIN    | The Telegram user id for the admin. The bot will only reply to messages sent from an admin. All other messages are dropped and logged on the bot's console. |
-| TELEGRAM_TOKEN    | Token you get from [@botfather](https://telegram.me/botfather) |
-| TEMPLATE_PATHS    | Path to custom message templates, default template is `./default.tmpl`, in docker - `/templates/default.tmpl` |
+|---------------------|------------------------------------------------------|
+| ALERTMANAGER_URL    | Address of the alertmanager, default: `http://localhost:9093` |
+| BOLT_PATH           | Path on disk to the file where the boltdb is stored, default: `/tmp/bot.db` |
+| CONSUL_URL          | The URL to use to connect with Consul, default: `localhost:8500` |
+| LISTEN_ADDR         | Address that the bot listens for webhooks, default: `0.0.0.0:8080` |
+| STORE               | The type of the store to use, choose from bolt (local) or consul (distributed) |
+| TELEGRAM_ADMIN      | The Telegram user id for the admin. The bot will only reply to messages sent from an admin. All other messages are dropped and logged on the bot's console. |
+| TELEGRAM_TOKEN      | Token you get from [@botfather](https://telegram.me/botfather) |
+| PROMETHEUS_ENVS     | List of environments monitored by Prometheus. String with comma-separated values |
+| PROMETHEUS_PROJECTS | List of projects monitored by Prometheus. String with comma-separated values  |
+| FETCH_PERIOD        | Scheduler period for fetching messages from store (in minutes) |
+| DELETE_PERIOD       | Time after messages have to be deleted (in minutes) |
+| TEMPLATE_PATHS      | Path to custom message templates, default template is `./default.tmpl`, in docker - `/templates/default.tmpl` |
 
 #### Authentication
 
@@ -205,23 +250,3 @@ In case you have `$GOPATH/bin` in your `$PATH` you can now simply start the bot 
 ```bash
 alertmanager-bot
 ```
-
-## Missing
-
-##### Commands
-
-* `/silence` - show a specific silence  
-* `/silence_del` - delete a silence by command  
-* `/silence_add` - add a silence for a alert by command
-
-##### More Messengers
-
-At the moment I only implemented Telegram, because it's so freakin' easy to do.
-
-Messengers considered to add in the future:
-
-* [Slack](https://slack.com/)
-* [Mattermost](https://about.mattermost.com/)
-* [Matrix](https://matrix.org/)
-
-If one is missing for you just open an issue.
