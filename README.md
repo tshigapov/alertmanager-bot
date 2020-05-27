@@ -113,7 +113,7 @@ Command examples:
 > [/stop](#stop) - Unsubscribe for alerts.  
 > [/status](#status) - Print the current status.  
 > [/alerts](#alerts) - List all alerts.  
-> [/silences](#silences) - List all silences.
+> [/silences](#silences) - List all silences. 
 > [/chats](#chats) - List all users and group chats that subscribed.
 > [/mute](#mute) - Mute environments and/or projects.
 > [/mute_del](#mute_del) - Delete mute for environments/projects.
