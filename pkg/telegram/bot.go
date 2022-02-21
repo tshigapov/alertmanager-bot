@@ -3,7 +3,9 @@ package telegram
 import (
 	"context"
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus"
 	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -29,9 +31,24 @@ const (
 	CommandChats = "/chats"
 	CommandID    = "/id"
 
-	CommandStatus   = "/status"
-	CommandAlerts   = "/alerts"
-	CommandSilences = "/silences"
+	CommandStatus       = "/status"
+	CommandAlerts       = "/alerts"
+	CommandSilences     = "/silences"
+	CommandMute         = "/mute"
+	CommandMuteDel      = "/mute_del"
+	CommandEnvironments = "/environments"
+	CommandProjects     = "/projects"
+	CommandMutedEnvs    = "/muted_envs"
+	CommandMutedPrs     = "/muted_prs"
+
+	ProjectAndEnvironmentMuteRegexp   = `/mute environment\[(\w+(\s*,\s*\w+)*)\],[ ]?project\[(\w+(\s*,\s*\w+)*)\]`
+	MuteProjectRegexp                 = `/mute project\[(\w+(\s*,\s*\w+)*)\]`
+	MuteEnvironmentRegexp             = `/mute environment\[(\w+(\s*,\s*\w+)*)\]`
+	ProjectAndEnvironmentUnmuteRegexp = `/mute_del environment\[(\w+(\s*,\s*\w+)*)\],[ ]?project\[(\w+(\s*,\s*\w+)*)\]`
+	UnmuteProjectRegexp               = `/mute_del project\[(\w+(\s*,\s*\w+)*)\]`
+	UnmuteEnvironmentRegexp           = `/mute_del environment\[(\w+(\s*,\s*\w+)*)\]`
+	EnvironmentValuesRegexp           = `environment\[(.*?)\]`
+	ProjectValuesRegexp               = `project\[(.*?)\]`
 
 	responseAlertsNotConfigured = "This chat hasn't been setup to receive any alerts yet... 😕\n\n" +
 		"Ask an administrator of the Alertmanager to add a webhook with `/webhooks/telegram/%d` as URL."
@@ -52,15 +69,28 @@ Available commands:
 ` + CommandSilences + ` - List all silences.
 ` + CommandChats + ` - List all users and group chats that subscribed.
 ` + CommandID + ` - Send the senders Telegram ID (works for all Telegram users).
+` + CommandMute + ` - Mute environments and/or projects.
+` + CommandMuteDel + ` - Delete mute.
+` + CommandEnvironments + ` - List all environments for alerts.
+` + CommandProjects + ` - List all projects for alerts.
+` + CommandMutedEnvs + ` - List all muted environments.
+` + CommandMutedPrs + ` - List all muted projects.
 `
 )
 
 // BotChatStore is all the Bot needs to store and read.
 type BotChatStore interface {
-	List() ([]*telebot.Chat, error)
+	List() ([]ChatInfo, error)
 	Get(telebot.ChatID) (*telebot.Chat, error)
-	Add(*telebot.Chat) error
+	AddChat(*telebot.Chat) error
 	Remove(*telebot.Chat) error
+	MuteEnvironments(*telebot.Chat, []string, []string) error
+	MuteProjects(*telebot.Chat, []string, []string) error
+	UnmuteEnvironment(*telebot.Chat, string, []string) error
+	UnmuteProject(*telebot.Chat, string, []string) error
+	MutedEnvironments(*telebot.Chat) ([]string, error)
+	MutedProjects(*telebot.Chat) ([]string, error)
+	DeleteAllMessages() error
 }
 
 // ChatNotFoundErr returned by the store if a chat isn't found.
@@ -82,25 +112,31 @@ type Alertmanager interface {
 
 // Bot runs the alertmanager telegram.
 type Bot struct {
-	addr         string
-	admins       []int // must be kept sorted
-	alertmanager Alertmanager
-	templates    *template.Template
-	chats        BotChatStore
-	logger       log.Logger
-	revision     string
-	startTime    time.Time
+	addr                 string
+	admins               []int // must be kept sorted
+	alertmanager         Alertmanager
+	templates            *template.Template
+	chats                BotChatStore
+	logger               log.Logger
+	revision             string
+	startTime            time.Time
+	environments         []string
+	projects             []string
+	environmentsAndOther []string
+	projectsAndOther     []string
 
 	telegram Telebot
 
-	commandEvents func(command string)
+	commandEvents   func(command string)
+	commandsCounter *prometheus.CounterVec
+	webhooksCounter prometheus.Counter
 }
 
 // BotOption passed to NewBot to change the default instance.
 type BotOption func(b *Bot) error
 
 // NewBot creates a Bot with the UserStore and telegram telegram.
-func NewBot(chats BotChatStore, token string, admin int, opts ...BotOption) (*Bot, error) {
+func NewBot(store *ChatStore, t string, i int, logger BotOption, event BotOption, addr BotOption, withAlertmanager BotOption, templates BotOption, revision BotOption, startTime BotOption, admins BotOption) (*Bot, error) {
 	poller := &telebot.LongPoller{
 		Timeout: 10 * time.Second,
 	}
@@ -117,13 +153,22 @@ func NewBot(chats BotChatStore, token string, admin int, opts ...BotOption) (*Bo
 }
 
 func NewBotWithTelegram(chats BotChatStore, bot Telebot, admin int, opts ...BotOption) (*Bot, error) {
+	commandsCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "alertmanagerbot",
+		Name:      "commands_total",
+		Help:      "Number of commands received by command name",
+	}, []string{"command"})
+	if err := prometheus.Register(commandsCounter); err != nil {
+		return nil, err
+	}
 	b := &Bot{
-		logger:        log.NewNopLogger(),
-		telegram:      bot,
-		chats:         chats,
-		addr:          "127.0.0.1:8080",
-		admins:        []int{admin},
-		commandEvents: func(command string) {},
+		logger:          log.NewNopLogger(),
+		telegram:        bot,
+		chats:           chats,
+		addr:            "127.0.0.1:8080",
+		admins:          []int{admin},
+		commandEvents:   func(command string) {},
+		commandsCounter: commandsCounter,
 	}
 
 	for _, opt := range opts {
@@ -238,7 +283,12 @@ func (b *Bot) Run(ctx context.Context, webhooks <-chan alertmanager.TelegramWebh
 	b.telegram.Handle(CommandStatus, b.middleware(b.handleStatus))
 	b.telegram.Handle(CommandAlerts, b.middleware(b.handleAlerts))
 	b.telegram.Handle(CommandSilences, b.middleware(b.handleSilences))
-
+	b.telegram.Handle(CommandMute, b.handleMute)
+	b.telegram.Handle(CommandMuteDel, b.handleMuteDel)
+	b.telegram.Handle(CommandEnvironments, b.handleEnvironments)
+	b.telegram.Handle(CommandProjects, b.handleProjects)
+	b.telegram.Handle(CommandMutedEnvs, b.handleMutedEnvs)
+	b.telegram.Handle(CommandMutedPrs, b.handleMutedPrs)
 	var gr run.Group
 	{
 		gr.Add(func() error {
@@ -256,6 +306,130 @@ func (b *Bot) Run(ctx context.Context, webhooks <-chan alertmanager.TelegramWebh
 	}
 
 	return gr.Run()
+}
+
+func (b *Bot) checkMessage(message *telebot.Message) error {
+	level.Debug(b.logger).Log("msg", "message received", "text", message.Text)
+	if message.IsService() {
+		return nil
+	}
+	if !b.isAdminID(message.Sender.ID) {
+		b.commandsCounter.WithLabelValues("dropped").Inc()
+		return fmt.Errorf("dropped message from forbidden sender")
+	}
+
+	if err := b.telegram.Notify(message.Chat, telebot.Typing); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (b *Bot) handleMute(message *telebot.Message) {
+	if err := b.checkMessage(message); err != nil {
+		level.Info(b.logger).Log(
+			"msg", "failed to process message",
+			"err", err,
+			"sender_id", message.Sender.ID,
+			"sender_username", message.Sender.Username,
+		)
+	} else {
+		envsToMute, prsToMute, err := parseMuteCommand(message.Text)
+		if err != nil {
+			_, _ = b.telegram.Send(message.Chat, fmt.Sprintf("failed to parse mute command... %v", err))
+			return
+		}
+
+		if len(envsToMute) > 0 {
+			err := b.chats.MuteEnvironments(message.Chat, envsToMute, b.environmentsAndOther)
+			if err != nil {
+				level.Warn(b.logger).Log("msg", "failed to subscribe user to environments", "err", err)
+				_, _ = b.telegram.Send(message.Chat, fmt.Sprintf("failed to subscribe user to environments... %v", err))
+			}
+		}
+
+		if len(prsToMute) > 0 {
+			err := b.chats.MuteProjects(message.Chat, prsToMute, b.projectsAndOther)
+			if err != nil {
+				level.Warn(b.logger).Log("msg", "failed to subscribe user to project", "err", err)
+				_, _ = b.telegram.Send(message.Chat, fmt.Sprintf("failed to subscribe user to proj... %v", err))
+			}
+		}
+
+		_, err = b.telegram.Send(message.Chat, "You were successfully muted environments and/or projects")
+		if err != nil {
+			level.Warn(b.logger).Log("msg", "failed to send success of muting the env/projects message to the user", "err", err)
+		}
+	}
+}
+
+func (b *Bot) handleEnvironments(message *telebot.Message) {
+	if err := b.checkMessage(message); err != nil {
+		level.Info(b.logger).Log(
+			"msg", "failed to process message",
+			"err", err,
+			"sender_id", message.Sender.ID,
+			"sender_username", message.Sender.Username,
+		)
+	} else {
+		b.telegram.Send(message.Chat, fmt.Sprintf("The following environments are available: %s", b.environmentsAndOther))
+	}
+}
+
+func (b *Bot) handleProjects(message *telebot.Message) {
+	if err := b.checkMessage(message); err != nil {
+		level.Info(b.logger).Log(
+			"msg", "failed to process message",
+			"err", err,
+			"sender_id", message.Sender.ID,
+			"sender_username", message.Sender.Username,
+		)
+	} else {
+		b.telegram.Send(message.Chat, fmt.Sprintf("The following projects are available: %s", b.projectsAndOther))
+	}
+}
+
+func (b *Bot) handleMutedEnvs(message *telebot.Message) {
+	if err := b.checkMessage(message); err != nil {
+		level.Info(b.logger).Log(
+			"msg", "failed to process message",
+			"err", err,
+			"sender_id", message.Sender.ID,
+			"sender_username", message.Sender.Username,
+		)
+	} else {
+		mutedEnvs, err := b.chats.MutedEnvironments(message.Chat)
+		if err != nil {
+			level.Warn(b.logger).Log("msg", "failed to get muted environments", "err", err)
+			b.telegram.Send(message.Chat, fmt.Sprintf("failed to get muted environments... %v", err))
+		}
+		if len(mutedEnvs) > 0 {
+			b.telegram.Send(message.Chat, fmt.Sprintf("Muted environments:  %s", mutedEnvs))
+		} else {
+			b.telegram.Send(message.Chat, "No muted environments")
+		}
+	}
+}
+
+func (b *Bot) handleMutedPrs(message *telebot.Message) {
+	if err := b.checkMessage(message); err != nil {
+		level.Info(b.logger).Log(
+			"msg", "failed to process message",
+			"err", err,
+			"sender_id", message.Sender.ID,
+			"sender_username", message.Sender.Username,
+		)
+	} else {
+		mutedPrs, err := b.chats.MutedProjects(message.Chat)
+		if err != nil {
+			level.Warn(b.logger).Log("msg", "failed to get muted projects", "err", err)
+			b.telegram.Send(message.Chat, fmt.Sprintf("failed to get muted projects... %v", err))
+		}
+		if len(mutedPrs) > 0 {
+			b.telegram.Send(message.Chat, fmt.Sprintf("Muted projects:  %s", mutedPrs))
+		} else {
+			b.telegram.Send(message.Chat, "No muted projects")
+		}
+	}
 }
 
 // sendWebhook sends messages received via webhook to all subscribed chats.
@@ -324,7 +498,7 @@ func (b *Bot) middleware(next func(*telebot.Message) error) func(*telebot.Messag
 }
 
 func (b *Bot) handleStart(message *telebot.Message) error {
-	if err := b.chats.Add(message.Chat); err != nil {
+	if err := b.chats.AddChat(message.Chat); err != nil {
 		level.Warn(b.logger).Log("msg", "failed to add chat to chat store", "err", err)
 		_, err = b.telegram.Send(message.Chat, "I can't add this chat to the subscribers list.")
 		return err
@@ -388,12 +562,12 @@ func (b *Bot) handleChats(message *telebot.Message) error {
 
 	list := ""
 	for _, chat := range chats {
-		if chat.Type == telebot.ChatGroup {
-			list = list + fmt.Sprintf("@%s\n", chat.Title)
-		} else if len(chat.Username) > 0 {
-			list = list + fmt.Sprintf("@%s\n", chat.Username)
+		if chat.Chat.Type == telebot.ChatGroup {
+			list = list + fmt.Sprintf("@%s\n", chat.Chat.Title)
+		} else if len(chat.Chat.Username) > 0 {
+			list = list + fmt.Sprintf("@%s\n", chat.Chat.Username)
 		} else {
-			list = list + fmt.Sprintf("@%d\n", chat.ID)
+			list = list + fmt.Sprintf("@%d\n", chat.Chat.ID)
 		}
 	}
 
@@ -434,6 +608,45 @@ func (b *Bot) handleStatus(message *telebot.Message) error {
 		&telebot.SendOptions{ParseMode: telebot.ModeMarkdown},
 	)
 	return err
+}
+
+func (b *Bot) handleMuteDel(message *telebot.Message) {
+	if err := b.checkMessage(message); err != nil {
+		level.Info(b.logger).Log(
+			"msg", "failed to process message",
+			"err", err,
+			"sender_id", message.Sender.ID,
+			"sender_username", message.Sender.Username,
+		)
+	} else {
+		envsToUnmute, prsToUnmute, err := parseUnmuteCommand(message.Text)
+		if err != nil {
+			b.telegram.Send(message.Chat, fmt.Sprintf("failed to parse unmute command... %v", err))
+			return
+		}
+
+		if len(envsToUnmute) > 0 {
+			for _, env := range envsToUnmute {
+				err := b.chats.UnmuteEnvironment(message.Chat, env, b.environmentsAndOther)
+				if err != nil {
+					level.Warn(b.logger).Log("msg", "failed to unsubscribe user from an environment", "err", err)
+					b.telegram.Send(message.Chat, fmt.Sprintf("failed to unsubscribe user from an environment... %v", err))
+				}
+			}
+		}
+
+		if len(prsToUnmute) > 0 {
+			for _, pr := range prsToUnmute {
+				err := b.chats.UnmuteProject(message.Chat, pr, b.projectsAndOther)
+				if err != nil {
+					level.Warn(b.logger).Log("msg", "failed to unsubscribe user from a project", "err", err)
+					b.telegram.Send(message.Chat, fmt.Sprintf("failed to unsubscribe user from a project... %v", err))
+				}
+			}
+		}
+
+		b.telegram.Send(message.Chat, "You were successfully delete mute from environments and/or projects")
+	}
 }
 
 func (b *Bot) handleAlerts(message *telebot.Message) error {
@@ -539,6 +752,50 @@ func (b *Bot) tmplAlerts(alerts ...*types.Alert) (string, error) {
 	return out, nil
 }
 
+func parseMuteCommand(text string) ([]string, []string, error) {
+	return parseCommands(text, ProjectAndEnvironmentMuteRegexp, MuteEnvironmentRegexp, MuteProjectRegexp)
+}
+
+func parseUnmuteCommand(text string) ([]string, []string, error) {
+	return parseCommands(text, ProjectAndEnvironmentUnmuteRegexp, UnmuteEnvironmentRegexp, UnmuteProjectRegexp)
+}
+
+func parseCommands(text string, projectAndEnvironmentRegexp string, environmentRegexp string,
+	projectRegexp string) ([]string, []string, error) {
+	matchProjectAndEnvironment, err := regexp.MatchString(projectAndEnvironmentRegexp, text)
+	if err != nil {
+		return []string{}, []string{}, err
+	}
+
+	regexProject, err := regexp.Compile(ProjectValuesRegexp)
+	regexEnvironment, err := regexp.Compile(EnvironmentValuesRegexp)
+
+	if matchProjectAndEnvironment {
+		env := strings.Replace(regexEnvironment.FindStringSubmatch(text)[1], " ", "", -1)
+		environmentsToMute := strings.Split(env, ",")
+
+		p := strings.Replace(regexProject.FindStringSubmatch(text)[1], " ", "", -1)
+		projectsToMute := strings.Split(p, ",")
+		return environmentsToMute, projectsToMute, nil
+	}
+
+	matchEnvironment, err := regexp.MatchString(environmentRegexp, text)
+	if matchEnvironment {
+		env := strings.Replace(regexEnvironment.FindStringSubmatch(text)[1], " ", "", -1)
+		environmentsToMute := strings.Split(env, ",")
+		return environmentsToMute, []string{}, nil
+	}
+
+	matchProject, err := regexp.MatchString(projectRegexp, text)
+	if matchProject {
+		p := strings.Replace(regexProject.FindStringSubmatch(text)[1], " ", "", -1)
+		projectsToRemove := strings.Split(p, ",")
+		return []string{}, projectsToRemove, nil
+	}
+
+	return []string{}, []string{}, errors.New("no matches were found")
+}
+
 // Truncate very big message.
 func (b *Bot) truncateMessage(str string) string {
 	truncateMsg := str
@@ -555,4 +812,18 @@ func (b *Bot) truncateMessage(str string) string {
 		return truncateMsg
 	}
 	return truncateMsg
+}
+
+func arrayDifference(a, b []string) []string {
+	mb := make(map[string]struct{}, len(b))
+	for _, x := range b {
+		mb[x] = struct{}{}
+	}
+	var diff []string
+	for _, x := range a {
+		if _, found := mb[x]; !found {
+			diff = append(diff, x)
+		}
+	}
+	return diff
 }

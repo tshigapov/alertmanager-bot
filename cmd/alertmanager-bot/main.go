@@ -22,11 +22,11 @@ import (
 	"github.com/docker/libkv/store/etcd"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-	"github.com/metalmatze/alertmanager-bot/pkg/alertmanager"
-	"github.com/metalmatze/alertmanager-bot/pkg/telegram"
 	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/tshigapov/alertmanager-bot/pkg/alertmanager" //change to soramitsu
+	"github.com/tshigapov/alertmanager-bot/pkg/telegram"     //change to soramitsu
 )
 
 const (

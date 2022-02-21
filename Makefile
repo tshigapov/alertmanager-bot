@@ -45,7 +45,7 @@ release:
 	fi
 	CGO_ENABLED=0 gox -arch="386 amd64 arm" -verbose -ldflags '-w $(LDFLAGS)' -output="dist/$(EXECUTABLE)-${DRONE_TAG}-{{.OS}}-{{.Arch}}" ./cmd/alertmanager-bot/
 
-README.md: deployments/examples/docker-compose.yaml deployments/examples/kubernetes.yaml
+README.md: docker-compose.yaml deployments/examples/kubernetes.yaml
 	embedmd -w README.md
 
 deployments/examples/kubernetes.yaml: deployments/examples/kubernetes.jsonnet deployments/examples/values.jsonnet deployments/kubernetes.libsonnet
