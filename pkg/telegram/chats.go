@@ -26,25 +26,30 @@ func NewChatStore(kv store.Store, storeKeyPrefix string) (*ChatStore, error) {
 }
 
 // List all chats saved in the kv backend.
-func (s *ChatStore) List() ([]*telebot.Chat, error) {
-	kvPairs, err := s.kv.List(s.storeKeyPrefix)
+func (s *ChatStore) List() ([]ChatInfo, error) {
+	kvPairs, err := s.kv.List(telegramChatsDirectory)
 	if err != nil {
 		return nil, err
 	}
 
-	var chats []*telebot.Chat
+	var chatInfos []ChatInfo
+
 	for _, kv := range kvPairs {
-		var c *telebot.Chat
-		if err := json.Unmarshal(kv.Value, &c); err != nil {
+		var chatInfo ChatInfo
+		if err := json.Unmarshal(kv.Value, &chatInfo); err != nil {
 			return nil, err
 		}
-		chats = append(chats, c)
+		chatInfos = append(chatInfos, chatInfo)
 	}
-
-	return chats, nil
+	return chatInfos, nil
 }
 
-// Get a specific chat by its ID.
+// Remove a telegram chat from the kv backend.
+func (s *ChatStore) RemoveChat(c *telebot.Chat) error {
+	key := fmt.Sprintf("%s/%d", telegramChatsDirectory, c.ID)
+	return s.kv.Delete(key)
+}
+
 func (s *ChatStore) Get(id telebot.ChatID) (*telebot.Chat, error) {
 	key := fmt.Sprintf("%s/%d", s.storeKeyPrefix, id)
 	kv, err := s.kv.Get(key)
@@ -57,12 +62,6 @@ func (s *ChatStore) Get(id telebot.ChatID) (*telebot.Chat, error) {
 	var c *telebot.Chat
 	err = json.Unmarshal(kv.Value, &c)
 	return c, err
-}
-
-// Remove a telegram chat from the kv backend.
-func (s *ChatStore) Remove(c *telebot.Chat) error {
-	key := fmt.Sprintf("%s/%d", s.storeKeyPrefix, c.ID)
-	return s.kv.Delete(key)
 }
 
 // Add a telegram chat to the kv backend.

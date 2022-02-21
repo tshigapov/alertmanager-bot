@@ -14,13 +14,13 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/hako/durafmt"
-	"github.com/metalmatze/alertmanager-bot/pkg/alertmanager"
 	"github.com/oklog/run"
 	"github.com/pkg/errors"
 	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/tshigapov/alertmanager-bot/pkg/alertmanager"
 	"gopkg.in/tucnak/telebot.v2"
 )
 
@@ -82,8 +82,8 @@ Available commands:
 type BotChatStore interface {
 	List() ([]ChatInfo, error)
 	Get(telebot.ChatID) (*telebot.Chat, error)
-	AddChat(*telebot.Chat) error
-	Remove(*telebot.Chat) error
+	AddChat(*telebot.Chat, []string, []string) error
+	RemoveChat(*telebot.Chat) error
 	MuteEnvironments(*telebot.Chat, []string, []string) error
 	MuteProjects(*telebot.Chat, []string, []string) error
 	UnmuteEnvironment(*telebot.Chat, string, []string) error
@@ -136,7 +136,7 @@ type Bot struct {
 type BotOption func(b *Bot) error
 
 // NewBot creates a Bot with the UserStore and telegram telegram.
-func NewBot(store *ChatStore, t string, i int, logger BotOption, event BotOption, addr BotOption, withAlertmanager BotOption, templates BotOption, revision BotOption, startTime BotOption, admins BotOption) (*Bot, error) {
+func NewBot(chats BotChatStore, token string, admin int, opts ...BotOption) (*Bot, error) {
 	poller := &telebot.LongPoller{
 		Timeout: 10 * time.Second,
 	}
@@ -275,14 +275,14 @@ func (b *Bot) isAdminID(id int) bool {
 
 // Run the telegram and listen to messages send to the telegram.
 func (b *Bot) Run(ctx context.Context, webhooks <-chan alertmanager.TelegramWebhook) error {
-	b.telegram.Handle(CommandStart, b.middleware(b.handleStart))
-	b.telegram.Handle(CommandStop, b.middleware(b.handleStop))
-	b.telegram.Handle(CommandHelp, b.middleware(b.handleHelp))
-	b.telegram.Handle(CommandChats, b.middleware(b.handleChats))
-	b.telegram.Handle(CommandID, b.middleware(b.handleID))
-	b.telegram.Handle(CommandStatus, b.middleware(b.handleStatus))
-	b.telegram.Handle(CommandAlerts, b.middleware(b.handleAlerts))
-	b.telegram.Handle(CommandSilences, b.middleware(b.handleSilences))
+	b.telegram.Handle(CommandStart, b.handleStart)
+	b.telegram.Handle(CommandStop, b.handleStop)
+	b.telegram.Handle(CommandHelp, b.handleHelp)
+	b.telegram.Handle(CommandChats, b.handleChats)
+	b.telegram.Handle(CommandID, b.handleID)
+	b.telegram.Handle(CommandStatus, b.handleStatus)
+	b.telegram.Handle(CommandAlerts, b.handleAlerts)
+	b.telegram.Handle(CommandSilences, b.handleSilences)
 	b.telegram.Handle(CommandMute, b.handleMute)
 	b.telegram.Handle(CommandMuteDel, b.handleMuteDel)
 	b.telegram.Handle(CommandEnvironments, b.handleEnvironments)
@@ -473,32 +473,8 @@ func (b *Bot) sendWebhook(ctx context.Context, webhooks <-chan alertmanager.Tele
 	}
 }
 
-func (b *Bot) middleware(next func(*telebot.Message) error) func(*telebot.Message) {
-	return func(m *telebot.Message) {
-		if m.IsService() {
-			return
-		}
-		if !b.isAdminID(m.Sender.ID) && m.Text != CommandID {
-			level.Info(b.logger).Log(
-				"msg", "dropping message from forbidden sender",
-				"sender_id", m.Sender.ID,
-				"sender_username", m.Sender.Username,
-			)
-			return
-		}
-
-		command := strings.Split(m.Text, " ")[0]
-		b.commandEvents(command)
-
-		level.Debug(b.logger).Log("msg", "message received", "text", m.Text)
-		if err := next(m); err != nil {
-			level.Warn(b.logger).Log("msg", "failed to handle command", "err", err)
-		}
-	}
-}
-
 func (b *Bot) handleStart(message *telebot.Message) error {
-	if err := b.chats.AddChat(message.Chat); err != nil {
+	if err := b.chats.AddChat(message.Chat, b.environmentsAndOther, b.projectsAndOther); err != nil {
 		level.Warn(b.logger).Log("msg", "failed to add chat to chat store", "err", err)
 		_, err = b.telegram.Send(message.Chat, "I can't add this chat to the subscribers list.")
 		return err
@@ -527,7 +503,7 @@ func (b *Bot) handleStart(message *telebot.Message) error {
 }
 
 func (b *Bot) handleStop(message *telebot.Message) error {
-	if err := b.chats.Remove(message.Chat); err != nil {
+	if err := b.chats.RemoveChat(message.Chat); err != nil {
 		level.Warn(b.logger).Log("msg", "failed to remove chat from chat store", "err", err)
 		_, err = b.telegram.Send(message.Chat, "I can't remove this chat from the subscribers list.")
 		return err

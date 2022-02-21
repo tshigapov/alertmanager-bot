@@ -1,4 +1,4 @@
-module github.com/metalmatze/alertmanager-bot
+module github.com/tshigapov/alertmanager-bot
 
 require (
 	github.com/OneOfOne/xxhash v1.2.5 // indirect
@@ -9,7 +9,8 @@ require (
 	github.com/docker/libkv v0.2.1
 	github.com/fatih/color v1.10.0 // indirect
 	github.com/go-kit/kit v0.10.0
-	github.com/go-openapi/strfmt v0.19.5
+	github.com/go-openapi/runtime v0.19.29 // indirect
+	github.com/go-openapi/strfmt v0.20.1
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.4.3 // indirect
 	github.com/google/uuid v1.2.0 // indirect
@@ -25,24 +26,20 @@ require (
 	github.com/joho/godotenv v1.3.0
 	github.com/kr/pretty v0.2.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
+	github.com/mailru/easyjson v0.7.6 // indirect
+	github.com/metalmatze/alertmanager-bot v0.0.0-20220105232920-a8c57d6b4459
 	github.com/miekg/dns v1.1.38 // indirect
 	github.com/mitchellh/go-testing-interface v1.14.1 // indirect
 	github.com/mitchellh/mapstructure v1.4.1 // indirect
 	github.com/oklog/run v1.1.0
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/alertmanager v0.21.0
-	github.com/prometheus/client_golang v1.7.1
-	github.com/prometheus/common v0.11.0
+	github.com/prometheus/alertmanager v0.23.0
+	github.com/prometheus/client_golang v1.11.0
+	github.com/prometheus/common v0.30.0
 	github.com/prometheus/procfs v0.6.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/stretchr/testify v1.7.0
-	golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83 // indirect
-	golang.org/x/net v0.0.0-20210220033124-5f55cee0dc0d // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
-	golang.org/x/sys v0.0.0-20210220050731-9a76102bfb43 // indirect
-	golang.org/x/text v0.3.5 // indirect
-	golang.org/x/tools v0.1.0 // indirect
-	google.golang.org/protobuf v1.25.0 // indirect
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/tucnak/telebot.v2 v2.3.6-0.20210222174923-66cc553e4d2d
 	gopkg.in/yaml.v2 v2.4.0 // indirect
