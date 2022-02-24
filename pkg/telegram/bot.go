@@ -275,20 +275,20 @@ func (b *Bot) isAdminID(id int) bool {
 
 // Run the telegram and listen to messages send to the telegram.
 func (b *Bot) Run(ctx context.Context, webhooks <-chan alertmanager.TelegramWebhook) error {
-	b.telegram.Handle(CommandStart, b.handleStart)
-	b.telegram.Handle(CommandStop, b.handleStop)
-	b.telegram.Handle(CommandHelp, b.handleHelp)
-	b.telegram.Handle(CommandChats, b.handleChats)
-	b.telegram.Handle(CommandID, b.handleID)
-	b.telegram.Handle(CommandStatus, b.handleStatus)
-	b.telegram.Handle(CommandAlerts, b.handleAlerts)
-	b.telegram.Handle(CommandSilences, b.handleSilences)
-	b.telegram.Handle(CommandMute, b.handleMute)
-	b.telegram.Handle(CommandMuteDel, b.handleMuteDel)
-	b.telegram.Handle(CommandEnvironments, b.handleEnvironments)
-	b.telegram.Handle(CommandProjects, b.handleProjects)
-	b.telegram.Handle(CommandMutedEnvs, b.handleMutedEnvs)
-	b.telegram.Handle(CommandMutedPrs, b.handleMutedPrs)
+	b.telegram.Handle(CommandStart, b.middleware(b.handleStart))
+	b.telegram.Handle(CommandStop, b.middleware(b.handleStop))
+	b.telegram.Handle(CommandHelp, b.middleware(b.handleHelp))
+	b.telegram.Handle(CommandChats, b.middleware(b.handleChats))
+	b.telegram.Handle(CommandID, b.middleware(b.handleID))
+	b.telegram.Handle(CommandStatus, b.middleware(b.handleStatus))
+	b.telegram.Handle(CommandAlerts, b.middleware(b.handleAlerts))
+	b.telegram.Handle(CommandSilences, b.middleware(b.handleSilences))
+	b.telegram.Handle(CommandMute, b.middleware(b.handleMute))
+	b.telegram.Handle(CommandMuteDel, b.middleware(b.handleMuteDel))
+	b.telegram.Handle(CommandEnvironments, b.middleware(b.handleEnvironments))
+	b.telegram.Handle(CommandProjects, b.middleware(b.handleProjects))
+	b.telegram.Handle(CommandMutedEnvs, b.middleware(b.handleMutedEnvs))
+	b.telegram.Handle(CommandMutedPrs, b.middleware(b.handleMutedPrs))
 	var gr run.Group
 	{
 		gr.Add(func() error {
@@ -308,6 +308,30 @@ func (b *Bot) Run(ctx context.Context, webhooks <-chan alertmanager.TelegramWebh
 	return gr.Run()
 }
 
+func (b *Bot) middleware(next func(*telebot.Message) error) func(*telebot.Message) {
+	return func(m *telebot.Message) {
+		if m.IsService() {
+			return
+		}
+		if !b.isAdminID(m.Sender.ID) && m.Text != CommandID {
+			level.Info(b.logger).Log(
+				"msg", "dropping message from forbidden sender",
+				"sender_id", m.Sender.ID,
+				"sender_username", m.Sender.Username,
+			)
+			return
+		}
+
+		command := strings.Split(m.Text, " ")[0]
+		b.commandEvents(command)
+
+		level.Debug(b.logger).Log("msg", "message received", "text", m.Text)
+		if err := next(m); err != nil {
+			level.Warn(b.logger).Log("msg", "failed to handle command", "err", err)
+		}
+	}
+}
+
 func (b *Bot) checkMessage(message *telebot.Message) error {
 	level.Debug(b.logger).Log("msg", "message received", "text", message.Text)
 	if message.IsService() {
@@ -324,7 +348,7 @@ func (b *Bot) checkMessage(message *telebot.Message) error {
 	return nil
 }
 
-func (b *Bot) handleMute(message *telebot.Message) {
+func (b *Bot) handleMute(message *telebot.Message) error {
 	if err := b.checkMessage(message); err != nil {
 		level.Info(b.logger).Log(
 			"msg", "failed to process message",
@@ -336,7 +360,7 @@ func (b *Bot) handleMute(message *telebot.Message) {
 		envsToMute, prsToMute, err := parseMuteCommand(message.Text)
 		if err != nil {
 			_, _ = b.telegram.Send(message.Chat, fmt.Sprintf("failed to parse mute command... %v", err))
-			return
+			return err
 		}
 
 		if len(envsToMute) > 0 {
@@ -360,9 +384,10 @@ func (b *Bot) handleMute(message *telebot.Message) {
 			level.Warn(b.logger).Log("msg", "failed to send success of muting the env/projects message to the user", "err", err)
 		}
 	}
+	return nil
 }
 
-func (b *Bot) handleEnvironments(message *telebot.Message) {
+func (b *Bot) handleEnvironments(message *telebot.Message) error {
 	if err := b.checkMessage(message); err != nil {
 		level.Info(b.logger).Log(
 			"msg", "failed to process message",
@@ -370,12 +395,14 @@ func (b *Bot) handleEnvironments(message *telebot.Message) {
 			"sender_id", message.Sender.ID,
 			"sender_username", message.Sender.Username,
 		)
+		return nil
 	} else {
 		b.telegram.Send(message.Chat, fmt.Sprintf("The following environments are available: %s", b.environmentsAndOther))
+		return err
 	}
 }
 
-func (b *Bot) handleProjects(message *telebot.Message) {
+func (b *Bot) handleProjects(message *telebot.Message) error {
 	if err := b.checkMessage(message); err != nil {
 		level.Info(b.logger).Log(
 			"msg", "failed to process message",
@@ -383,12 +410,14 @@ func (b *Bot) handleProjects(message *telebot.Message) {
 			"sender_id", message.Sender.ID,
 			"sender_username", message.Sender.Username,
 		)
+		return nil
 	} else {
 		b.telegram.Send(message.Chat, fmt.Sprintf("The following projects are available: %s", b.projectsAndOther))
+		return err
 	}
 }
 
-func (b *Bot) handleMutedEnvs(message *telebot.Message) {
+func (b *Bot) handleMutedEnvs(message *telebot.Message) error {
 	if err := b.checkMessage(message); err != nil {
 		level.Info(b.logger).Log(
 			"msg", "failed to process message",
@@ -396,6 +425,7 @@ func (b *Bot) handleMutedEnvs(message *telebot.Message) {
 			"sender_id", message.Sender.ID,
 			"sender_username", message.Sender.Username,
 		)
+		return nil
 	} else {
 		mutedEnvs, err := b.chats.MutedEnvironments(message.Chat)
 		if err != nil {
@@ -407,10 +437,11 @@ func (b *Bot) handleMutedEnvs(message *telebot.Message) {
 		} else {
 			b.telegram.Send(message.Chat, "No muted environments")
 		}
+		return err
 	}
 }
 
-func (b *Bot) handleMutedPrs(message *telebot.Message) {
+func (b *Bot) handleMutedPrs(message *telebot.Message) error {
 	if err := b.checkMessage(message); err != nil {
 		level.Info(b.logger).Log(
 			"msg", "failed to process message",
@@ -418,6 +449,7 @@ func (b *Bot) handleMutedPrs(message *telebot.Message) {
 			"sender_id", message.Sender.ID,
 			"sender_username", message.Sender.Username,
 		)
+		return nil
 	} else {
 		mutedPrs, err := b.chats.MutedProjects(message.Chat)
 		if err != nil {
@@ -429,6 +461,7 @@ func (b *Bot) handleMutedPrs(message *telebot.Message) {
 		} else {
 			b.telegram.Send(message.Chat, "No muted projects")
 		}
+		return err
 	}
 }
 
@@ -586,7 +619,7 @@ func (b *Bot) handleStatus(message *telebot.Message) error {
 	return err
 }
 
-func (b *Bot) handleMuteDel(message *telebot.Message) {
+func (b *Bot) handleMuteDel(message *telebot.Message) error {
 	if err := b.checkMessage(message); err != nil {
 		level.Info(b.logger).Log(
 			"msg", "failed to process message",
@@ -594,11 +627,12 @@ func (b *Bot) handleMuteDel(message *telebot.Message) {
 			"sender_id", message.Sender.ID,
 			"sender_username", message.Sender.Username,
 		)
+		return nil
 	} else {
 		envsToUnmute, prsToUnmute, err := parseUnmuteCommand(message.Text)
 		if err != nil {
 			b.telegram.Send(message.Chat, fmt.Sprintf("failed to parse unmute command... %v", err))
-			return
+			return err
 		}
 
 		if len(envsToUnmute) > 0 {
@@ -623,6 +657,7 @@ func (b *Bot) handleMuteDel(message *telebot.Message) {
 
 		b.telegram.Send(message.Chat, "You were successfully delete mute from environments and/or projects")
 	}
+	return nil
 }
 
 func (b *Bot) handleAlerts(message *telebot.Message) error {

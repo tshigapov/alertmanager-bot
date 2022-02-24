@@ -3,13 +3,13 @@ networks:
 services:
   alertmanager-bot:
     command:
-    - --alertmanager.url=http://localhost:9093
+    - --alertmanager.url=http://localhost:2375
     - --log.level=info
     - --store=bolt
     - --bolt.path=/data/bot.db
     - --telegram.admin=184892957
     - --telegram.token=5144282720:AAHNMYNkTJu1XKBQX6k8eEmRzbd1apJRiOY
-    image: shigapov/alert_bot:1.2
+    image: shigapov/alert_bot:1.3
     networks:
     - alertmanager-bot
     ports:
