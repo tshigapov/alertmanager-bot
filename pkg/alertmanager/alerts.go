@@ -40,8 +40,8 @@ func (c *Client) ListAlerts(ctx context.Context, receiver string, silenced bool)
 
 		alerts = append(alerts, &types.Alert{
 			Alert: model.Alert{
-				Labels:       model.LabelSet{}, //labels,
-				Annotations:  annotations,
+				Labels:       labels,
+				Annotations:  model.LabelSet{}, //annotations,
 				StartsAt:     time.Time(*a.StartsAt),
 				EndsAt:       endsAt,
 				GeneratorURL: a.GeneratorURL.String(),
