@@ -2,7 +2,6 @@ package alertmanager
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/prometheus/alertmanager/api/v2/client/alert"
@@ -25,7 +24,6 @@ func (c *Client) ListAlerts(ctx context.Context, receiver string, silenced bool)
 		for name, value := range a.Labels {
 			labels[model.LabelName(name)] = model.LabelValue(value)
 		}
-		fmt.Print(a)
 		annotations := make(model.LabelSet, len(a.Annotations))
 		for name, value := range a.Annotations {
 			annotations[model.LabelName(name)] = model.LabelValue(value)
@@ -42,7 +40,7 @@ func (c *Client) ListAlerts(ctx context.Context, receiver string, silenced bool)
 
 		alerts = append(alerts, &types.Alert{
 			Alert: model.Alert{
-				Labels:       labels,
+				Labels:       model.LabelSet{}, //labels,
 				Annotations:  annotations,
 				StartsAt:     time.Time(*a.StartsAt),
 				EndsAt:       endsAt,
