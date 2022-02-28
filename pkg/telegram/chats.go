@@ -17,7 +17,7 @@ type ChatStore struct {
 	storeKeyPrefix string
 }
 
-const telegramChatsDirectory = "webhooks/telegram"
+const telegramChatsDirectory = "telegram/chats"
 const telegramMessagesDirectory = "telegram/messages"
 
 // NewChatStore stores telegram chats in the provided kv backend.

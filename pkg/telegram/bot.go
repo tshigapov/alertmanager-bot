@@ -708,12 +708,12 @@ func receiverFromConfig(c string, id int64) (string, error) {
 		return "", fmt.Errorf("config is empty")
 	}
 
-	config, err := config.Load(c)
+	conf, err := config.Load(c)
 	if err != nil {
 		return "", err
 	}
 
-	for _, receiver := range config.Receivers {
+	for _, receiver := range conf.Receivers {
 		for _, webhook := range receiver.WebhookConfigs {
 			path := webhook.URL.Path
 			if strings.HasPrefix(path, "/webhooks/telegram/") {
