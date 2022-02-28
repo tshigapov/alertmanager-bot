@@ -708,6 +708,7 @@ func receiverFromConfig(c string, id int64) (string, error) {
 	if c == "" {
 		return "", fmt.Errorf("config is empty")
 	}
+	fmt.Print(c)
 
 	conf, err := config.Load(c)
 	if err != nil {
