@@ -17,7 +17,6 @@ import (
 	"github.com/oklog/run"
 	"github.com/pkg/errors"
 	"github.com/prometheus/alertmanager/api/v2/models"
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/tshigapov/alertmanager-bot/pkg/alertmanager"
@@ -661,14 +660,12 @@ func (b *Bot) handleMuteDel(message *telebot.Message) error {
 }
 
 func (b *Bot) handleAlerts(message *telebot.Message) error {
-	status, err := b.alertmanager.Status(context.TODO())
-	if err != nil {
-		level.Warn(b.logger).Log("msg", "failed to get status with config", "err", err)
-		_, err = b.telegram.Send(message.Chat, fmt.Sprintf("failed to list alerts... %v", err))
-		return err
-	}
 
-	receiver, err := receiverFromConfig(*status.Config.Original, message.Chat.ID)
+	chats, err := b.chats.List()
+	if err != nil {
+		level.Warn(b.logger).Log("msg", "empty alert list - ", "err", err)
+	}
+	receiver, err := receiverFromConfig(chats, message.Chat.ID)
 	if err != nil || receiver == "" {
 		_, err := b.telegram.Send(message.Chat, fmt.Sprintf(responseAlertsNotConfigured, message.Chat.ID), &telebot.SendOptions{ParseMode: telebot.ModeMarkdown})
 		level.Warn(b.logger).Log("msg", "alerts not configured - ", "err", err)
@@ -704,29 +701,15 @@ func (b *Bot) handleAlerts(message *telebot.Message) error {
 	return err
 }
 
-func receiverFromConfig(c string, id int64) (string, error) {
-	if c == "" {
-		return "", fmt.Errorf("config is empty")
-	}
-	fmt.Print(c)
-
-	conf, err := config.Load(c)
-	if err != nil {
-		return "", err
+func receiverFromConfig(l []ChatInfo, id int64) (string, error) {
+	if len(l) == 0 {
+		return "", fmt.Errorf("list of chats is empty")
 	}
 
-	for _, receiver := range conf.Receivers {
-		for _, webhook := range receiver.WebhookConfigs {
-			path := webhook.URL.Path
-			if strings.HasPrefix(path, "/telegram/chats") {
-				parseID, err := strconv.ParseInt(strings.TrimPrefix(path, "/telegram/chats"), 10, 64)
-				if err != nil {
-					return "", err
-				}
-				if parseID == id {
-					return receiver.Name, nil
-				}
-			}
+	for ind := range l {
+		chatId := l[ind].Chat.ID
+		if chatId == id {
+			return "/telegram/chats" + strconv.FormatInt(l[ind].Chat.ID, 10), nil
 		}
 	}
 
