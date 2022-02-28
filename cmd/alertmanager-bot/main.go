@@ -259,7 +259,7 @@ func main() {
 		reg.MustRegister(webhooksCounter)
 
 		m := http.NewServeMux()
-		m.HandleFunc("/webhooks/telegram/", alertmanager.HandleTelegramWebhook(wlogger, webhooksCounter, webhooks))
+		m.HandleFunc("/telegram/chats", alertmanager.HandleTelegramWebhook(wlogger, webhooksCounter, webhooks))
 		m.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
 		m.HandleFunc("/health", handleHealth)
 		m.HandleFunc("/healthz", handleHealth)
