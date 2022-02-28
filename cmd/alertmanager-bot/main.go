@@ -61,7 +61,7 @@ var cli struct {
 	cliTelegram
 
 	Store       string `required:"true" name:"store" enum:"bolt,consul,etcd" help:"The store to use"`
-	StorePrefix string `name:"storeKeyPrefix" default:"telegram/chats" help:"Prefix for store keys"`
+	StorePrefix string `name:"storeKeyPrefix" default:"webhooks/telegram" help:"Prefix for store keys"`
 	cliBolt
 	cliConsul
 	cliEtcd

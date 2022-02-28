@@ -44,7 +44,7 @@ func (s *ChatStore) List() ([]ChatInfo, error) {
 	return chatInfos, nil
 }
 
-// Remove a telegram chat from the kv backend.
+// RemoveChat Remove a telegram chat from the kv backend.
 func (s *ChatStore) RemoveChat(c *telebot.Chat) error {
 	key := fmt.Sprintf("%s/%d", telegramChatsDirectory, c.ID)
 	return s.kv.Delete(key)
@@ -64,7 +64,7 @@ func (s *ChatStore) Get(id telebot.ChatID) (*telebot.Chat, error) {
 	return c, err
 }
 
-// Add a telegram chat to the kv backend.
+// AddChat Add a telegram chat to the kv backend.
 func (s *ChatStore) AddChat(c *telebot.Chat, allEnvs []string, allPrs []string) error {
 	newChat := ChatInfo{Chat: c, AlertEnvironments: allEnvs, AlertProjects: allPrs,
 		MutedEnvironments: []string{}, MutedProjects: []string{}}
