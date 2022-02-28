@@ -716,8 +716,8 @@ func receiverFromConfig(c string, id int64) (string, error) {
 	for _, receiver := range conf.Receivers {
 		for _, webhook := range receiver.WebhookConfigs {
 			path := webhook.URL.Path
-			if strings.HasPrefix(path, "/webhooks/telegram/") {
-				parseID, err := strconv.ParseInt(strings.TrimPrefix(path, "/webhooks/telegram/"), 10, 64)
+			if strings.HasPrefix(path, "/telegram/chats") {
+				parseID, err := strconv.ParseInt(strings.TrimPrefix(path, "/telegram/chats"), 10, 64)
 				if err != nil {
 					return "", err
 				}
