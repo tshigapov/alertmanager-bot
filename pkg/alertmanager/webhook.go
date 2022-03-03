@@ -31,7 +31,7 @@ func HandleTelegramWebhook(logger log.Logger, counter prometheus.Counter, webhoo
 		}
 		defer r.Body.Close()
 
-		chatID, err := strconv.ParseInt(strings.TrimPrefix(r.URL.Path, "/telegram/chats"), 10, 64)
+		chatID, err := strconv.ParseInt(strings.TrimPrefix(r.URL.Path, "/webhooks/telegram"), 10, 64)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			_, _ = w.Write([]byte(`{"error":"unable to parse chat ID to int64"}`))
