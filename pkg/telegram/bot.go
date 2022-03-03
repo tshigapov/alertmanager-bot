@@ -123,6 +123,8 @@ type Bot struct {
 	projects             []string
 	environmentsAndOther []string
 	projectsAndOther     []string
+	fetchPeriod          float64
+	deletePeriod         float64
 
 	telegram Telebot
 
@@ -183,6 +185,44 @@ func NewBotWithTelegram(chats BotChatStore, bot Telebot, admin int, opts ...BotO
 func WithLogger(l log.Logger) BotOption {
 	return func(b *Bot) error {
 		b.logger = l
+		return nil
+	}
+}
+
+// WithEnvironments allows to define environments that are monitored by Prometheus
+func WithEnvironments(environmentsToUse string) BotOption {
+	return func(b *Bot) error {
+		p := strings.Replace(environmentsToUse, " ", "", -1)
+		environmentsToSave := strings.Split(p, ",")
+		b.environments = append(b.environments, environmentsToSave...)
+		b.environmentsAndOther = append(b.environments, "other")
+		return nil
+	}
+}
+
+// WithProjects allows to define projects that are monitored by Prometheus
+func WithProjects(projectsToUse string) BotOption {
+	return func(b *Bot) error {
+		p := strings.Replace(projectsToUse, " ", "", -1)
+		projectsToSave := strings.Split(p, ",")
+		b.projects = append(b.projects, projectsToSave...)
+		b.projectsAndOther = append(b.projects, "other")
+		return nil
+	}
+}
+
+// WithFetchPeriod allows to define scheduler period for fetching messages from store
+func WithFetchPeriod(fetchPeriod float64) BotOption {
+	return func(b *Bot) error {
+		b.fetchPeriod = fetchPeriod
+		return nil
+	}
+}
+
+// WithDeletePeriod allows to define period of deleting messages
+func WithDeletePeriod(deletePeriod float64) BotOption {
+	return func(b *Bot) error {
+		b.deletePeriod = deletePeriod
 		return nil
 	}
 }

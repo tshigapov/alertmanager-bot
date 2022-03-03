@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -213,6 +214,8 @@ func main() {
 			os.Exit(1)
 		}
 
+		fetchPeriod, _ := strconv.ParseFloat(os.Getenv("FETCH_PERIOD"), 64)
+		deletePeriod, _ := strconv.ParseFloat(os.Getenv("DELETE_PERIOD"), 64)
 		bot, err := telegram.NewBot(
 			chats, cli.cliTelegram.Token, cli.cliTelegram.Admins[0],
 			telegram.WithLogger(tlogger),
@@ -223,6 +226,11 @@ func main() {
 			telegram.WithRevision(Revision),
 			telegram.WithStartTime(StartTime),
 			telegram.WithExtraAdmins(cli.cliTelegram.Admins[1:]...),
+
+			telegram.WithEnvironments(os.Getenv("PROMETHEUS_ENVS")),
+			telegram.WithProjects(os.Getenv("PROMETHEUS_PROJECTS")),
+			telegram.WithFetchPeriod(fetchPeriod),
+			telegram.WithDeletePeriod(deletePeriod),
 		)
 		if err != nil {
 			level.Error(tlogger).Log("msg", "failed to create bot", "err", err)
