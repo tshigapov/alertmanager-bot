@@ -511,7 +511,7 @@ func (b *Bot) sendWebhook(ctx context.Context, webhooks <-chan alertmanager.Tele
 		case <-ctx.Done():
 			return nil
 		case w := <-webhooks:
-			level.Debug(b.logger).Log("msg", "got webhook")
+			level.Warn(b.logger).Log("msg", "got webhook")
 			chat, err := b.chats.Get(telebot.ChatID(w.ChatID))
 			if err != nil {
 				if errors.Is(err, ChatNotFoundErr) {
