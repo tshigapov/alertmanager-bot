@@ -80,7 +80,7 @@ Available commands:
 // BotChatStore is all the Bot needs to store and read.
 type BotChatStore interface {
 	List() ([]ChatInfo, error)
-	Get(telebot.ChatID) (*telebot.Chat, error)
+	Get(telebot.ChatID) (*telebot.Chat, error, string)
 	AddChat(*telebot.Chat, []string, []string) error
 	RemoveChat(*telebot.Chat) error
 	MuteEnvironments(*telebot.Chat, []string, []string) error
@@ -115,7 +115,7 @@ type Bot struct {
 	admins               []int // must be kept sorted
 	alertmanager         Alertmanager
 	templates            *template.Template
-	chats                ChatStore
+	chats                BotChatStore
 	logger               log.Logger
 	revision             string
 	startTime            time.Time
@@ -137,7 +137,7 @@ type Bot struct {
 type BotOption func(b *Bot) error
 
 // NewBot creates a Bot with the UserStore and telegram telegram.
-func NewBot(chats ChatStore, token string, admin int, opts ...BotOption) (*Bot, error) {
+func NewBot(chats BotChatStore, token string, admin int, opts ...BotOption) (*Bot, error) {
 	poller := &telebot.LongPoller{
 		Timeout: 10 * time.Second,
 	}
@@ -153,7 +153,7 @@ func NewBot(chats ChatStore, token string, admin int, opts ...BotOption) (*Bot, 
 	return NewBotWithTelegram(chats, bot, admin, opts...)
 }
 
-func NewBotWithTelegram(chats ChatStore, bot Telebot, admin int, opts ...BotOption) (*Bot, error) {
+func NewBotWithTelegram(chats BotChatStore, bot Telebot, admin int, opts ...BotOption) (*Bot, error) {
 	commandsCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "alertmanagerbot",
 		Name:      "commands_total",
@@ -512,7 +512,8 @@ func (b *Bot) sendWebhook(ctx context.Context, webhooks <-chan alertmanager.Tele
 			return nil
 		case w := <-webhooks:
 			level.Warn(b.logger).Log("msg", "got webhook")
-			chat, err := b.chats.Get(telebot.ChatID(w.ChatID))
+			chat, err, key := b.chats.Get(telebot.ChatID(w.ChatID))
+			level.Debug(b.logger).Log("msg", key)
 			if err != nil {
 				if errors.Is(err, ChatNotFoundErr) {
 					level.Warn(b.logger).Log("msg", "chat is not subscribed for alerts", "chat_id", w.ChatID, "err", err)
