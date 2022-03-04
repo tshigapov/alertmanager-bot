@@ -514,7 +514,7 @@ func (b *Bot) sendWebhook(ctx context.Context, webhooks <-chan alertmanager.Tele
 		case w := <-webhooks:
 			level.Warn(b.logger).Log("msg", "got webhook")
 			chat, err, kv := b.chats.Get(telebot.ChatID(w.ChatID))
-			level.Debug(b.logger).Log("key", kv.Key, "value", string(kv.Value))
+			level.Debug(b.logger).Log("key", kv.Key, "value", string(kv.Value), "chatid", strconv.FormatInt(chat.ID, 10))
 			if err != nil {
 				if errors.Is(err, ChatNotFoundErr) {
 					level.Warn(b.logger).Log("msg", "chat is not subscribed for alerts", "chat_id", w.ChatID, "err", err)
