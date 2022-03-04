@@ -115,7 +115,7 @@ type Bot struct {
 	admins               []int // must be kept sorted
 	alertmanager         Alertmanager
 	templates            *template.Template
-	chats                BotChatStore
+	chats                ChatStore
 	logger               log.Logger
 	revision             string
 	startTime            time.Time
@@ -137,7 +137,7 @@ type Bot struct {
 type BotOption func(b *Bot) error
 
 // NewBot creates a Bot with the UserStore and telegram telegram.
-func NewBot(chats BotChatStore, token string, admin int, opts ...BotOption) (*Bot, error) {
+func NewBot(chats ChatStore, token string, admin int, opts ...BotOption) (*Bot, error) {
 	poller := &telebot.LongPoller{
 		Timeout: 10 * time.Second,
 	}
@@ -153,7 +153,7 @@ func NewBot(chats BotChatStore, token string, admin int, opts ...BotOption) (*Bo
 	return NewBotWithTelegram(chats, bot, admin, opts...)
 }
 
-func NewBotWithTelegram(chats BotChatStore, bot Telebot, admin int, opts ...BotOption) (*Bot, error) {
+func NewBotWithTelegram(chats ChatStore, bot Telebot, admin int, opts ...BotOption) (*Bot, error) {
 	commandsCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "alertmanagerbot",
 		Name:      "commands_total",
@@ -513,7 +513,6 @@ func (b *Bot) sendWebhook(ctx context.Context, webhooks <-chan alertmanager.Tele
 		case w := <-webhooks:
 			level.Warn(b.logger).Log("msg", "got webhook")
 			chat, err := b.chats.Get(telebot.ChatID(w.ChatID))
-			level.Debug(b.logger).Log("msg", strconv.FormatInt(chat.ID, 10))
 			if err != nil {
 				if errors.Is(err, ChatNotFoundErr) {
 					level.Warn(b.logger).Log("msg", "chat is not subscribed for alerts", "chat_id", w.ChatID, "err", err)
