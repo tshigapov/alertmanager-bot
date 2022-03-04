@@ -17,8 +17,8 @@ type ChatStore struct {
 	storeKeyPrefix string
 }
 
-const telegramChatsDirectory = "telegram/chats"
-const telegramMessagesDirectory = "telegram/messages"
+const telegramChatsDirectory = "telegram/chats/"
+const telegramMessagesDirectory = "telegram/messages/"
 
 // NewChatStore stores telegram chats in the provided kv backend.
 func NewChatStore(kv store.Store, storeKeyPrefix string) (*ChatStore, error) {
