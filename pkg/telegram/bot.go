@@ -513,7 +513,7 @@ func (b *Bot) sendWebhook(ctx context.Context, webhooks <-chan alertmanager.Tele
 		case w := <-webhooks:
 			level.Warn(b.logger).Log("msg", "got webhook")
 			chat, err := b.chats.Get(telebot.ChatID(w.ChatID))
-			level.Debug(b.logger).Log("msg", chat)
+			level.Debug(b.logger).Log("msg", chat.LastName)
 			if err != nil {
 				if errors.Is(err, ChatNotFoundErr) {
 					level.Warn(b.logger).Log("msg", "chat is not subscribed for alerts", "chat_id", w.ChatID, "err", err)
@@ -537,7 +537,7 @@ func (b *Bot) sendWebhook(ctx context.Context, webhooks <-chan alertmanager.Tele
 				level.Warn(b.logger).Log("msg", "failed to template alerts", "err", err)
 				continue
 			}
-
+			level.Debug(b.logger).Log("msg", out)
 			_, err = b.telegram.Send(chat, b.truncateMessage(out), &telebot.SendOptions{ParseMode: telebot.ModeHTML})
 			if err != nil {
 				level.Warn(b.logger).Log("msg", "failed to send message with alerts", "err", err)
