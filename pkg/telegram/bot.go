@@ -750,7 +750,7 @@ func receiverFromConfig(l []ChatInfo, id int64) (string, error) {
 	for ind := range l {
 		chatId := l[ind].Chat.ID
 		if chatId == id {
-			return "/telegram/chats" + strconv.FormatInt(l[ind].Chat.ID, 10), nil
+			return "/webhooks/telegram/" + strconv.FormatInt(l[ind].Chat.ID, 10), nil
 		}
 	}
 
