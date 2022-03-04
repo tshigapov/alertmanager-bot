@@ -3,6 +3,7 @@ package telegram
 import (
 	"context"
 	"fmt"
+	"github.com/docker/libkv/store"
 	"github.com/prometheus/client_golang/prometheus"
 	"net/url"
 	"regexp"
@@ -80,7 +81,7 @@ Available commands:
 // BotChatStore is all the Bot needs to store and read.
 type BotChatStore interface {
 	List() ([]ChatInfo, error)
-	Get(telebot.ChatID) (*telebot.Chat, error, string)
+	Get(telebot.ChatID) (*telebot.Chat, error, *store.KVPair)
 	AddChat(*telebot.Chat, []string, []string) error
 	RemoveChat(*telebot.Chat) error
 	MuteEnvironments(*telebot.Chat, []string, []string) error
@@ -512,8 +513,8 @@ func (b *Bot) sendWebhook(ctx context.Context, webhooks <-chan alertmanager.Tele
 			return nil
 		case w := <-webhooks:
 			level.Warn(b.logger).Log("msg", "got webhook")
-			chat, err, key := b.chats.Get(telebot.ChatID(w.ChatID))
-			level.Debug(b.logger).Log("msg", key)
+			chat, err, kv := b.chats.Get(telebot.ChatID(w.ChatID))
+			level.Debug(b.logger).Log("key", kv.Key, "value", string(kv.Value))
 			if err != nil {
 				if errors.Is(err, ChatNotFoundErr) {
 					level.Warn(b.logger).Log("msg", "chat is not subscribed for alerts", "chat_id", w.ChatID, "err", err)
