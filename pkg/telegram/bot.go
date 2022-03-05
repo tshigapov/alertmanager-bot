@@ -90,7 +90,7 @@ type BotChatStore interface {
 	UnmuteProject(*telebot.Chat, string, []string) error
 	MutedEnvironments(*telebot.Chat) ([]string, error)
 	MutedProjects(*telebot.Chat) ([]string, error)
-	DeleteAllMessages() error
+	// DeleteAllMessages() error
 }
 
 // ChatNotFoundErr returned by the store if a chat isn't found.
