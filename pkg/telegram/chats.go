@@ -4,9 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
-	"time"
-
 	"github.com/docker/libkv/store"
 	"gopkg.in/tucnak/telebot.v2"
 )
@@ -17,8 +14,9 @@ type ChatStore struct {
 	storeKeyPrefix string
 }
 
-const telegramChatsDirectory = "telegram/chats/"
-const telegramMessagesDirectory = "telegram/messages/"
+const telegramChatsDirectory = "telegram/chats"
+
+// const telegramMessagesDirectory = "telegram/messages"
 
 // NewChatStore stores telegram chats in the provided kv backend.
 func NewChatStore(kv store.Store, storeKeyPrefix string) (*ChatStore, error) {
@@ -50,18 +48,18 @@ func (s *ChatStore) RemoveChat(c *telebot.Chat) error {
 	return s.kv.Delete(key)
 }
 
-func (s *ChatStore) Get(id telebot.ChatID) (*telebot.Chat, error) {
+func (s *ChatStore) Get(id telebot.ChatID) (*telebot.Chat, error, *store.KVPair) {
 	key := fmt.Sprintf("%s/%d", s.storeKeyPrefix, id)
 	kv, err := s.kv.Get(key)
 	if err != nil {
 		if errors.Is(err, store.ErrKeyNotFound) {
-			return nil, ChatNotFoundErr
+			return nil, ChatNotFoundErr, kv
 		}
-		return nil, err
+		return nil, err, kv
 	}
-	var c *telebot.Chat
-	err = json.Unmarshal(kv.Value, &c)
-	return c, err
+	var ci *ChatInfo
+	err = json.Unmarshal(kv.Value, &ci)
+	return ci.Chat, err, kv
 }
 
 // AddChat Add a telegram chat to the kv backend.
@@ -76,6 +74,7 @@ func (s *ChatStore) AddChat(c *telebot.Chat, allEnvs []string, allPrs []string) 
 	return s.kv.Put(key, info, nil)
 }
 
+/*
 func (s *ChatStore) AddMessage(m *telebot.Message) error {
 	messages, err := s.GetAllMessages()
 	if err != nil {
@@ -87,9 +86,9 @@ func (s *ChatStore) AddMessage(m *telebot.Message) error {
 		return nil
 	}
 	return s.kv.Put(telegramMessagesDirectory, info, nil)
-}
+}*/
 
-func (s *ChatStore) GetAllMessages() ([]telebot.Message, error) {
+/*func (s *ChatStore) GetAllMessages() ([]telebot.Message, error) {
 	kvPair, err := s.kv.Get(telegramMessagesDirectory)
 	if err != nil {
 		if 0 == strings.Compare("Key not found in store", err.Error()) {
@@ -103,13 +102,13 @@ func (s *ChatStore) GetAllMessages() ([]telebot.Message, error) {
 		return nil, err
 	}
 	return messages, nil
-}
+}*/
 
-func (s *ChatStore) DeleteAllMessages() error {
+/*func (s *ChatStore) DeleteAllMessages() error {
 	return s.kv.Delete(telegramMessagesDirectory)
-}
+}*/
 
-func (s *ChatStore) GetMessagesForPeriodInMinutes(minutes float64) ([]telebot.Message, error) {
+/*func (s *ChatStore) GetMessagesForPeriodInMinutes(minutes float64) ([]telebot.Message, error) {
 	messages, err := s.GetAllMessages()
 	if err != nil {
 		return nil, err
@@ -134,9 +133,9 @@ func (s *ChatStore) GetMessagesForPeriodInMinutes(minutes float64) ([]telebot.Me
 		return nil, err
 	}
 	return messagesToDelete, nil
-}
+}*/
 
-func (s *ChatStore) GetChatInfo(c *telebot.Chat) (ChatInfo, error) {
+/*func (s *ChatStore) GetChatInfo(c *telebot.Chat) (ChatInfo, error) {
 	key := fmt.Sprintf("%s/%d", telegramChatsDirectory, c.ID)
 	kvPairs, err := s.kv.Get(key)
 	if err != nil {
@@ -148,7 +147,7 @@ func (s *ChatStore) GetChatInfo(c *telebot.Chat) (ChatInfo, error) {
 		return ChatInfo{}, err
 	}
 	return chatInfo, nil
-}
+}*/
 
 func (s *ChatStore) MuteEnvironments(c *telebot.Chat, envsToMute []string, allEnvs []string) error {
 	key := fmt.Sprintf("%s/%d", telegramChatsDirectory, c.ID)
