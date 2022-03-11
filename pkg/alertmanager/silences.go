@@ -10,7 +10,6 @@ import (
 
 	"github.com/hako/durafmt"
 	"github.com/prometheus/alertmanager/api/v2/client/silence"
-	_ "github.com/prometheus/alertmanager/pkg/labels"
 )
 
 func (c *Client) ListSilences(ctx context.Context) ([]*types.Silence, error) {
