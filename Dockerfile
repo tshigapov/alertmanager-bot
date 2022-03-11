@@ -7,5 +7,4 @@ COPY ./alertmanager-bot/go_build_main_go_linux /usr/bin/alertmanager-bot
 
 RUN chmod +x /usr/bin/alertmanager-bot
 
-USER nobody
 ENTRYPOINT ["/usr/bin/alertmanager-bot"]

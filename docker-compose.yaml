@@ -9,7 +9,7 @@ services:
     - --bolt.path=/data/bot.db
     - --telegram.admin=184892957
     - --telegram.token=5144282720:AAHNMYNkTJu1XKBQX6k8eEmRzbd1apJRiOY
-    image: shigapov/alert_bot:1.3
+    image: shigapov/alert_bot:1.6
     networks:
     - alertmanager-bot
     ports:
