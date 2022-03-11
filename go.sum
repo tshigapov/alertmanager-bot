@@ -553,6 +553,8 @@ github.com/grpc-ecosystem/grpc-gateway v1.9.5/go.mod h1:vNeuVxBJEsws4ogUvrchl83t
 github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645/go.mod h1:6iZfnjpejD4L/4DwD7NryNaJyCQdzwWwH2MWhCA90Kw=
 github.com/hako/durafmt v0.0.0-20160831152008-ea3ab126a649 h1:M7ekfimPGyc0qmyE+m1OOtwbatwZ0t6HX9Tm4yAD4EA=
 github.com/hako/durafmt v0.0.0-20160831152008-ea3ab126a649/go.mod h1:5Scbynm8dF1XAPwIwkGPqzkM/shndPm79Jd1003hTjE=
+github.com/hako/durafmt v0.0.0-20210608085754-5c1018a4e16b h1:wDUNC2eKiL35DbLvsDhiblTUXHxcOPwQSCzi7xpQUN4=
+github.com/hako/durafmt v0.0.0-20210608085754-5c1018a4e16b/go.mod h1:VzxiSdG6j1pi7rwGm/xYI5RbtpBgM8sARDXlvEvxlu0=
 github.com/hashicorp/consul v1.9.3 h1:oH4umphlUi2EfYoaSwu9IlMkPKxekZ2O3FiYKuK//4I=
 github.com/hashicorp/consul v1.9.3/go.mod h1:LRXRvZeszMeFnGFQiIpAKm8Emta9kKQ3YLch2jFiID8=
 github.com/hashicorp/consul/api v1.3.0/go.mod h1:MmDNSzIMUjNpY/mQ398R4bk2FnqQLoPndWW5VkKPlCE=
